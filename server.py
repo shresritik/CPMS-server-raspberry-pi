@@ -9,8 +9,22 @@ import base64
 from db.config import engine, SessionLocal
 import db.model as model
 import db.schemas as schemas
+import aiofiles, datetime, uuid
+from fastapi.staticfiles import StaticFiles
+
 model.Base.metadata.create_all(bind=engine)
 app = FastAPI()
+
+# to access Uploaded Image
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+
+
+# Import Fingerprint code
+try:
+    from fingerprint import finger
+except Exception as ex:
+    print('\n\n Error Importing Fingerprint Module: ', ex)
 
 origins = [
     "http://127.0.0.1:5173",
@@ -78,3 +92,88 @@ async def deleteId(id, db: Session = Depends(get_db)):
         model.User.id == id).delete(synchronize_session=False)
     db.commit()
     return {"deleted": "true"}
+
+# --------------------------------
+# Fingerprint api
+# --------------------------------
+
+@app.post("/api/v1/new_driver/")
+async def new_driver(username: str, expiry_date: str, license_img: UploadFile, db: Session = Depends(get_db)):
+    # Create new driver
+    # print(f"\n\nrequest: {request}")
+    file_extension = license_img.filename.split(".")[-1]
+    file_name = f"/uploads/{uuid.uuid4()}.{file_extension}"
+    print('\n\nfile_name: ', file_name)
+    # user_dir = f"./uploads/{request.username}"
+    os.makedirs("./uploads", exist_ok=True)
+    async with aiofiles.open(f"{'.'+file_name}", 'wb') as out_file:
+        content = await license_img.read()  # Read the contents of the file
+        await out_file.write(content)  # Write the contents to the new file
+    
+    try:
+        finger_id = finger.enroll()['id'] # enroll a new user with fingerprint sensor
+    except Exception as ex:
+        finger_id = -1
+        print(f'\n\n Error Importing Fingeprint : {ex} ')
+    
+    new_driver = model.Driver(username=username,
+                               license_img=file_name, expiry_date=expiry_date, finger_id=finger_id)
+    db.add(new_driver)
+    db.commit()
+    db.refresh(new_driver)
+    return new_driver
+
+@app.get("/api/v1/validate_driver/")
+async def getDriver(db: Session = Depends(get_db)):
+    # e.g. http://localhost:8000/api/v1/driver/11
+    # GEt one driver
+    print(f"driver: {model.Driver}")
+    # driver = db.query(model.Driver).order_by(
+    #     desc(model.Driver.id)).all()
+    # driver = db.query(model.Driver).filter_by(finger_id=id).first()
+    
+    # find fingerprint
+    try:
+        finger_id = finger.find()['id'] # enroll a new user with fingerprint sensor
+    except Exception as ex:
+        finger_id = -1
+        print(f'\n\n Error Importing Fingeprint : {ex} ')
+        return {'driver': None, 'message': 'Error Importing Fingeprint : {}'.format(ex)}
+    
+    # search by fingerprint id
+    try:
+        driver = db.query(model.Driver).filter(
+            model.Driver.finger_id == finger_id).first()
+        print(f"\n\n driver: {driver.expiry_date}")
+    except:
+        return {'driver': None, 'message': 'No driver found with finger id :{}'.format(finger_id)}
+    
+    # Validating expiry date
+    seperator = driver["expiry_date"][4]
+    date = tuple([int(a) for a in driver["expiry_date"].split(seperator)])
+    license_expiry = datetime.datetime(date[0], date[1], date[2])
+    if license_expiry < datetime.datetime.now():
+        return {'driver': driver, 'message': 'License Expired! Please renew it!'}
+    
+    return {'driver': driver, 'message': 'Valid license Found!'}
+
+
+@app.get("/api/v1/drivers/")
+async def getAllDrivers(db: Session = Depends(get_db)):
+    # Get all the drivers
+    print(f"driver: {model.Driver}")
+    drivers = db.query(model.Driver).order_by(desc(model.Driver.id)).all()
+    return drivers
+
+@app.delete("/api/v1/delete_driver/{id}")
+async def deleteId(id, db: Session = Depends(get_db)):
+    finger_id = finger.delete()['id']
+    if finger_id:
+        db.query(model.Driver).filter(
+            model.Driver.finger_id == id).delete(synchronize_session=False)
+        to_delete = db.query(model.Driver).filter(
+            model.Driver.finger_id == finger_id).first()
+        db.commit()
+        return {"deleted": True, 'message': 'deleted successfully: {}'.format(to_delete)}
+    else:
+        return {"deleted": False, 'message': 'did not find matching finger_id: {}'.format(finger_id)}

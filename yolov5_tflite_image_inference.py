@@ -7,7 +7,7 @@ import numpy as np
 from utils import letterbox_image, scale_coords
 
 
-def sortFunc(a):
+def sortFunc(data):
     store = ""
     # for k, v in value.items():
     #     print(k,v[0][0], v[1])
@@ -19,27 +19,33 @@ def sortFunc(a):
     # for i in sorted_values:
     #     store += i[1]
     # print(store)
-    a.sort(key=lambda y: y[0], reverse=True)    # sort by y
-    a.sort(key=lambda x: x[1])                  # sort by x
-    # print(a)
-    first_line = a[:4]
-    first_line.sort(key=lambda y: y[0])
-    second_line = a[4:8]
-    second_line.sort(key=lambda y: y[0])
-    third_line = a[8:]
-    third_line.sort(key=lambda y: y[0])
-    # print("first_line", first_line)
-    # print("second_line", second_line)
-    # print("third_line", third_line)
-    sorted_a = first_line + second_line + third_line                # sort by x
-    # print(a)
-    for i in range(len(a)):
-        store += sorted_a[i][3]
+    data.sort(key=lambda x: x[1])
+    # print("After", data)
+
+    threshold = 30
+    fData = data[0][1]
+    # print("Before fData", fData)
+
+    i = 0
+    for d in data:
+        # print("fData value", fData-data[i][1])
+        if abs(fData-data[i][1]) > threshold:
+            fData = data[i][1]
+            # print("After fData", fData)
+        data[i].append(fData)
+        # print("data", data)
+        i = i+1
+    data.sort(key=lambda x: (x[3], x[0]))
+    # print("next sort", data)
+    for d in data:
+        del(d[3])
+    for i in data:
+        store += i[2]
     print(store)
     return store
 
 
-def detect_image(weights,  image_url, img_size, conf_thres, iou_thres,labels):
+def detect_image(weights,  image_url, img_size, conf_thres, iou_thres, labels):
     result = []
     start_time = time.time()
     # image = cv2.imread(image_url)
@@ -94,9 +100,10 @@ def detect_image(weights,  image_url, img_size, conf_thres, iou_thres,labels):
                 last.append(i)
                 # result.append(
                 #     {round(r[0], 2): result_class_names[i]})
+                # result.append(
+                #     [round(r[0], 2), round(r[1], 2), int(100*result_scores[i]), result_class_names[i]])
                 result.append(
-                    [round(r[0], 2), round(r[1], 2), int(100*result_scores[i]), result_class_names[i]])
-
+                    [round(r[0], 2), round(r[1], 2), result_class_names[i]])
                 # cv2.imshow("frame2", labelImg[:, :, ::-1])
                 # print("detect character")
                 # cv2.imshow("frame", img[:, :, ::-1])
@@ -141,4 +148,5 @@ if __name__ == '__main__':
     opt = parser.parse_args()
 
     # print(opt)
-    detect_image(opt.weights, opt.img_path, opt.img_size,opt.conf_thres, opt.iou_thres,opt.labels)
+    detect_image(opt.weights, opt.img_path, opt.img_size,
+                 opt.conf_thres, opt.iou_thres, opt.labels)

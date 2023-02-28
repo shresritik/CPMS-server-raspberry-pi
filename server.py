@@ -123,6 +123,7 @@ async def new_driver(username: str, expiry_date: str, license_img: UploadFile, d
     db.refresh(new_driver)
     return new_driver
 
+# Search and validate one driver by scanning fingerprint
 @app.get("/api/v1/validate_driver/")
 async def getDriver(db: Session = Depends(get_db)):
     # e.g. http://localhost:8000/api/v1/driver/11
@@ -157,7 +158,7 @@ async def getDriver(db: Session = Depends(get_db)):
     
     return {'driver': driver, 'message': 'Valid license Found!'}
 
-
+# List of all drivers
 @app.get("/api/v1/drivers/")
 async def getAllDrivers(db: Session = Depends(get_db)):
     # Get all the drivers
@@ -165,15 +166,44 @@ async def getAllDrivers(db: Session = Depends(get_db)):
     drivers = db.query(model.Driver).order_by(desc(model.Driver.id)).all()
     return drivers
 
-@app.delete("/api/v1/delete_driver/{id}")
+# Delete one driver by finger_id
+@app.delete("/api/v1/delete_driver/")
 async def deleteId(id, db: Session = Depends(get_db)):
+    # Find driver by scanning finger
+    try:
+        finger_id = finger.find()['id'] # enroll a new user with fingerprint sensor
+    except Exception as ex:
+        finger_id = -1
+        print(f'\n\n Error Importing Fingeprint : {ex} ')
+        return {'deleted': False, 'message': 'Error Importing Fingeprint : {}'.format(ex)}
+    
+    # delete fingerprint data from fingerprint sensor
     finger_id = finger.delete()['id']
+
+    # search by fingerprint id in database
+    try:
+        driver = db.query(model.Driver).filter(
+            model.Driver.finger_id == finger_id).first()
+        print(f"\n\n driver: {driver.expiry_date}")
+    except:
+        return {'deleted': False, 'message': 'No driver found with finger id :{}'.format(finger_id)}
+
+    # delete image from /uploads
+    image_location = './' + driver['license_img']
+    image_location.replace('//', '/')
+    print(image_location)
+    if os.path.exists(image_location):
+        os.rmdir('image_location')
+    else:
+        print("\n\n TODO  delete image from location: \'{}\' \n\n".format(image_location))
+
+    # delete data from database
     if finger_id:
         db.query(model.Driver).filter(
             model.Driver.finger_id == id).delete(synchronize_session=False)
-        to_delete = db.query(model.Driver).filter(
+        driver_to_delete = db.query(model.Driver).filter(
             model.Driver.finger_id == finger_id).first()
         db.commit()
-        return {"deleted": True, 'message': 'deleted successfully: {}'.format(to_delete)}
+        return {"deleted": True, 'message': 'deleted successfully: {}'.format(driver)}
     else:
         return {"deleted": False, 'message': 'did not find matching finger_id: {}'.format(finger_id)}

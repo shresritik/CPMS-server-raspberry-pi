@@ -166,7 +166,7 @@ async def getAllDrivers(db: Session = Depends(get_db)):
     drivers = db.query(model.Driver).order_by(desc(model.Driver.id)).all()
     return drivers
 
-# Delete one driver by finger_id
+# Delete one driver by scanning fingerprint
 @app.delete("/api/v1/delete_driver/")
 async def deleteId(id, db: Session = Depends(get_db)):
     # Find driver by scanning finger

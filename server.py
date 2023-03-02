@@ -9,15 +9,17 @@ import base64
 from db.config import engine, SessionLocal
 import db.model as model
 import db.schemas as schemas
-import aiofiles, datetime, uuid
+import aiofiles
+import datetime
+import uuid
 from fastapi.staticfiles import StaticFiles
+# from fingerprint import finger
 
 model.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 # to access Uploaded Image
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
 
 
 # Import Fingerprint code
@@ -71,7 +73,8 @@ async def root():
 @app.post("/api/v1/upload/")
 async def publish(request: schemas.UserCreate, db: Session = Depends(get_db)):
     new_user = model.User(numOfPass=request.numOfPass,
-                          plateImg=request.plateImg, numberPlate=request.numberPlate)
+                          plateImg=request.plateImg, numberPlate=request.numberPlate, licenseImg=request.licenseImg, expiry_date=request.expiry_date)
+    print(new_user)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -82,6 +85,7 @@ async def publish(request: schemas.UserCreate, db: Session = Depends(get_db)):
 async def getAll(db: Session = Depends(get_db)):
 
     users = db.query(model.User).order_by(desc(model.User.id)).all()
+    print(users)
     return users
 
 
@@ -97,6 +101,7 @@ async def deleteId(id, db: Session = Depends(get_db)):
 # Fingerprint api
 # --------------------------------
 
+
 @app.post("/api/v1/new_driver/")
 async def new_driver(username: str, expiry_date: str, license_img: UploadFile, db: Session = Depends(get_db)):
     # Create new driver
@@ -109,21 +114,24 @@ async def new_driver(username: str, expiry_date: str, license_img: UploadFile, d
     async with aiofiles.open(f"{'.'+file_name}", 'wb') as out_file:
         content = await license_img.read()  # Read the contents of the file
         await out_file.write(content)  # Write the contents to the new file
-    
+
     try:
-        finger_id = finger.enroll()['id'] # enroll a new user with fingerprint sensor
+        # enroll a new user with fingerprint sensor
+        finger_id = finger.enroll()['id']
     except Exception as ex:
         finger_id = -1
         print(f'\n\n Error Importing Fingeprint : {ex} ')
-    
+
     new_driver = model.Driver(username=username,
-                               license_img=file_name, expiry_date=expiry_date, finger_id=finger_id)
+                              license_img=file_name, expiry_date=expiry_date, finger_id=finger_id)
     db.add(new_driver)
     db.commit()
     db.refresh(new_driver)
     return new_driver
 
 # Search and validate one driver by scanning fingerprint
+
+
 @app.get("/api/v1/validate_driver/")
 async def getDriver(db: Session = Depends(get_db)):
     # e.g. http://localhost:8000/api/v1/driver/11
@@ -132,33 +140,37 @@ async def getDriver(db: Session = Depends(get_db)):
     # driver = db.query(model.Driver).order_by(
     #     desc(model.Driver.id)).all()
     # driver = db.query(model.Driver).filter_by(finger_id=id).first()
-    
+
     # find fingerprint
     try:
-        finger_id = finger.find()['id'] # enroll a new user with fingerprint sensor
+        # enroll a new user with fingerprint sensor
+        finger_id = finger.find()['id']
     except Exception as ex:
         finger_id = -1
         print(f'\n\n Error Importing Fingeprint : {ex} ')
         return {'driver': None, 'message': 'Error Importing Fingeprint : {}'.format(ex)}
-    
+
     # search by fingerprint id
     try:
         driver = db.query(model.Driver).filter(
             model.Driver.finger_id == finger_id).first()
-        print(f"\n\n driver: {driver.expiry_date}")
+        print(f"\n\n driver expiry: {driver.expiry_date}")
     except:
         return {'driver': None, 'message': 'No driver found with finger id :{}'.format(finger_id)}
-    
+
     # Validating expiry date
-    seperator = driver["expiry_date"][4]
-    date = tuple([int(a) for a in driver["expiry_date"].split(seperator)])
+    print('\n\ndriver: {}\n\n'.format(driver))
+    seperator = driver.expiry_date
+    date = tuple([int(a) for a in driver.expiry_date.split(seperator[4])])
     license_expiry = datetime.datetime(date[0], date[1], date[2])
     if license_expiry < datetime.datetime.now():
         return {'driver': driver, 'message': 'License Expired! Please renew it!'}
-    
+
     return {'driver': driver, 'message': 'Valid license Found!'}
 
 # List of all drivers
+
+
 @app.get("/api/v1/drivers/")
 async def getAllDrivers(db: Session = Depends(get_db)):
     # Get all the drivers
@@ -167,16 +179,19 @@ async def getAllDrivers(db: Session = Depends(get_db)):
     return drivers
 
 # Delete one driver by scanning fingerprint
+
+
 @app.delete("/api/v1/delete_driver/")
 async def deleteId(id, db: Session = Depends(get_db)):
     # Find driver by scanning finger
     try:
-        finger_id = finger.find()['id'] # enroll a new user with fingerprint sensor
+        # enroll a new user with fingerprint sensor
+        finger_id = finger.find()['id']
     except Exception as ex:
         finger_id = -1
         print(f'\n\n Error Importing Fingeprint : {ex} ')
         return {'deleted': False, 'message': 'Error Importing Fingeprint : {}'.format(ex)}
-    
+
     # delete fingerprint data from fingerprint sensor
     finger_id = finger.delete()['id']
 
@@ -195,7 +210,8 @@ async def deleteId(id, db: Session = Depends(get_db)):
     if os.path.exists(image_location):
         os.rmdir('image_location')
     else:
-        print("\n\n TODO  delete image from location: \'{}\' \n\n".format(image_location))
+        print("\n\n TODO  delete image from location: \'{}\' \n\n".format(
+            image_location))
 
     # delete data from database
     if finger_id:

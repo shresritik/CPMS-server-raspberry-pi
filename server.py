@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, File, UploadFile
+from fastapi import FastAPI, Depends, File, UploadFile, Form
 from fastapi.responses import FileResponse
 from yolov5_tflite_webcam_inference import detect_video
 from fastapi.middleware.cors import CORSMiddleware
@@ -103,7 +103,7 @@ async def deleteId(id, db: Session = Depends(get_db)):
 
 
 @app.post("/api/v1/new_driver/")
-async def new_driver(username: str, expiry_date: str, license_img: UploadFile, db: Session = Depends(get_db)):
+async def new_driver(username: str = Form(), expiry_date: str = Form(), license_img: UploadFile = Form(), db: Session = Depends(get_db)):
     # Create new driver
     # print(f"\n\nrequest: {request}")
     file_extension = license_img.filename.split(".")[-1]
@@ -118,6 +118,9 @@ async def new_driver(username: str, expiry_date: str, license_img: UploadFile, d
     try:
         # enroll a new user with fingerprint sensor
         finger_id = finger.enroll()['id']
+        if (finger_id == False or finger_id.status == 'already exit'):
+            finger_id = -1
+        print("In server", finger_id)
     except Exception as ex:
         finger_id = -1
         print(f'\n\n Error Importing Fingeprint : {ex} ')
@@ -127,7 +130,8 @@ async def new_driver(username: str, expiry_date: str, license_img: UploadFile, d
     db.add(new_driver)
     db.commit()
     db.refresh(new_driver)
-    return new_driver
+    return {"message": "posted", "file": new_driver, "finger": finger_id}
+
 
 # Search and validate one driver by scanning fingerprint
 

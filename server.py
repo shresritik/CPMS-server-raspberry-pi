@@ -60,7 +60,7 @@ def get_db():
 async def root():
 
     value = detect_video(weights=BASE_PATH+"/models/custom_plate.tflite", labels=BASE_PATH+"/labels/plate.txt", conf_thres=0.25, iou_thres=0.45,
-                         img_size=640, webcam=0)
+                         img_size=640, webcam=1)
 
     print("inside main", value)
     # file_path = listDir + '\output\cropped\cropped1.jpg'

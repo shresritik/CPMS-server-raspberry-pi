@@ -16,7 +16,7 @@ class User(Base):
     expiry_date = Column(String)
 
     # url of image location
-    createdAt = Column(DateTime, default=datetime.datetime.utcnow)
+    createdAt = Column(DateTime, default=datetime.datetime.now)
 
 
 class Driver(Base):

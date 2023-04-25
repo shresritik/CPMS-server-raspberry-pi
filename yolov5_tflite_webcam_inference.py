@@ -15,7 +15,7 @@ def detect_video(weights, labels, webcam, img_size, conf_thres, iou_thres):
     start_time = time.time()
 
     fourcc = cv2.VideoWriter_fourcc(*'MPEG')
-    video = cv2.VideoCapture(webcam)
+    video = cv2.VideoCapture(-1)
     fps = video.get(cv2.CAP_PROP_FPS)
     # print(fps)
     h = int(video.get(3))

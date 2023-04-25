@@ -115,15 +115,14 @@ async def new_driver(username: str = Form(), expiry_date: str = Form(), license_
         content = await license_img.read()  # Read the contents of the file
         await out_file.write(content)  # Write the contents to the new file
 
-    try:
-        # enroll a new user with fingerprint sensor
-        finger_id = finger.enroll()['id']
-        if (finger_id == False or finger_id.status == 'already exit'):
+    fingerprint_id = -1
+    while fingerprint_id == -1:
+        try:
+            # enroll a new user with fingerprint sensor
+            finger_id = finger.enroll()['id']
+        except Exception as ex:
             finger_id = -1
-        print("In server", finger_id)
-    except Exception as ex:
-        finger_id = -1
-        print(f'\n\n Error Importing Fingeprint : {ex} ')
+            print(f'\n\n Error Importing Fingeprint : {ex} ')
 
     new_driver = model.Driver(username=username,
                               license_img=file_name, expiry_date=expiry_date, finger_id=finger_id)
@@ -134,8 +133,6 @@ async def new_driver(username: str = Form(), expiry_date: str = Form(), license_
 
 
 # Search and validate one driver by scanning fingerprint
-
-
 @app.get("/api/v1/validate_driver/")
 async def getDriver(db: Session = Depends(get_db)):
     # e.g. http://localhost:8000/api/v1/driver/11
@@ -146,13 +143,18 @@ async def getDriver(db: Session = Depends(get_db)):
     # driver = db.query(model.Driver).filter_by(finger_id=id).first()
 
     # find fingerprint
-    try:
-        # enroll a new user with fingerprint sensor
-        finger_id = finger.find()['id']
-    except Exception as ex:
-        finger_id = -1
-        print(f'\n\n Error Importing Fingeprint : {ex} ')
-        return {'driver': None, 'message': 'Error Importing Fingeprint : {}'.format(ex)}
+    finger_id = -1
+    while finger_id == -1:
+        try:
+            # enroll a new user with fingerprint sensor
+            finger_id = finger.find()['id']
+            if (finger_id == False or finger_id.status == 'already exit'):
+                finger_id = -1
+            print("In server", finger_id)
+        except Exception as ex:
+            finger_id = -1
+            print(f'\n\n Error Importing Fingeprint : {ex} ')
+            return {'driver': None, 'message': 'Error Importing Fingeprint : {}'.format(ex)}
 
     # search by fingerprint id
     try:
@@ -188,13 +190,15 @@ async def getAllDrivers(db: Session = Depends(get_db)):
 @app.delete("/api/v1/delete_driver/")
 async def deleteId(id, db: Session = Depends(get_db)):
     # Find driver by scanning finger
-    try:
-        # enroll a new user with fingerprint sensor
-        finger_id = finger.find()['id']
-    except Exception as ex:
-        finger_id = -1
-        print(f'\n\n Error Importing Fingeprint : {ex} ')
-        return {'deleted': False, 'message': 'Error Importing Fingeprint : {}'.format(ex)}
+    finger_id = -1
+    while finger_id == -1:
+        try:
+            # enroll a new user with fingerprint sensor
+            finger_id = finger.find()['id']
+        except Exception as ex:
+            finger_id = -1
+            print(f'\n\n Error Importing Fingeprint : {ex} ')
+            return {'deleted': False, 'message': 'Error Importing Fingeprint : {}'.format(ex)}
 
     # delete fingerprint data from fingerprint sensor
     finger_id = finger.delete()['id']

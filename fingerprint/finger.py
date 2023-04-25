@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: 2021 ladyada for Adafruit Industries
 # SPDX-License-Identifier: MIT
 
+import serial
 import time
 import board
 import busio
@@ -16,11 +17,10 @@ led.direction = Direction.OUTPUT
 # uart = busio.UART(board.TX, board.RX, baudrate=57600)
 
 # If using with a computer such as Linux/RaspberryPi, Mac, Windows with USB/serial converter:
-import serial
 try:
-  uart = serial.Serial("/dev/ttyUSB0", baudrate=57600, timeout=1)
+    uart = serial.Serial("/dev/ttyUSB0", baudrate=57600, timeout=1)
 except:
-  uart = serial.Serial("/dev/ttyUSB1", baudrate=57600, timeout=1)
+    uart = serial.Serial("/dev/ttyUSB1", baudrate=57600, timeout=1)
 
 # If using with Linux/Raspberry Pi and hardware UART:
 # import serial
@@ -100,7 +100,7 @@ def enroll_finger(location=-1):
             print("Place finger on sensor...", end="")
         else:
             print("Place same finger again...", end="")
-            
+
         while True:
             i = finger.get_image()
             if i == adafruit_fingerprint.OK:
@@ -117,12 +117,13 @@ def enroll_finger(location=-1):
 
         print("Templating...", end="")
         i = finger.image_2_tz(fingerimg)
-        
+
         if i == adafruit_fingerprint.OK:
             print("Templated")
             if fingerimg == 1 and finger.finger_search() == adafruit_fingerprint.OK:
                 print('Fingerprint Already Exists, #id:{}'.format(finger.finger_id))
-                return finger.finger_id
+                return {"status": "already exist", "fingerprint_id": finger.finger_id}
+
         else:
             if i == adafruit_fingerprint.IMAGEMESS:
                 print("Image too messy")
@@ -180,13 +181,14 @@ def get_num():
             pass
     return i
 
+
 if finger.read_templates() != adafruit_fingerprint.OK:
     raise RuntimeError("Failed to read templates")
 
-if __name__=="__main__":
+if __name__ == "__main__":
     while True:
         print("----------------")
-        #if finger.read_templates() != adafruit_fingerprint.OK:
+        # if finger.read_templates() != adafruit_fingerprint.OK:
         #    raise RuntimeError("Failed to read templates")
         print("Fingerprint templates:", finger.templates)
         print("e) enroll print")
@@ -201,14 +203,15 @@ if __name__=="__main__":
             finger = adafruit_fingerprint.Adafruit_Fingerprint(uart)
         if c == "f":
             if get_fingerprint():
-                print("Detected #", finger.finger_id, "with confidence", finger.confidence)
+                print("Detected #", finger.finger_id,
+                      "with confidence", finger.confidence)
             else:
                 print("Finger not found")
         if c == "d":
             if finger.delete_model(get_num()) == adafruit_fingerprint.OK:
                 # update finger object
                 finger = adafruit_fingerprint.Adafruit_Fingerprint(uart)
-                
+
                 print("Deleted!")
 
 
@@ -216,25 +219,30 @@ if __name__=="__main__":
 # Find
 # finger_location = enroll_finger(location:<optional int>)
 def enroll():
-        # random enroll id location
-        enroll_id = random.choice([i for i in range(1,128) if i not in finger.templates])
-        enroll_id = enroll_finger(enroll_id)
-        # update finger object
-        # finger = adafruit_fingerprint.Adafruit_Fingerprint(uart)
-        # enrolled_ids.append(enroll_id)
-        
-        print(f'id: {enroll_id}')
-        return {'id': enroll_id}
+    # random enroll id location
+    enroll_id = random.choice(
+        [i for i in range(1, 128) if i not in finger.templates])
+    enroll_id = enroll_finger(enroll_id)
+    # update finger object
+    # finger = adafruit_fingerprint.Adafruit_Fingerprint(uart)
+    # enrolled_ids.append(enroll_id)
+
+    print(f'id: {enroll_id}')
+    return {'id': enroll_id}
+
+
 def find():
     if get_fingerprint():
-        print("Detected #", finger.finger_id, "with confidence", finger.confidence)
+        print("Detected #", finger.finger_id,
+              "with confidence", finger.confidence)
         return {'id': finger.finger_id, 'confidence': finger.confidence}
     else:
         detected = False
         print("Finger not found")
     return False
 
-def delete(id = -1):
+
+def delete(id=-1):
     # delete fingerprint id if id is given
     # scan and delete if id not given
     global finger
@@ -253,6 +261,7 @@ def delete(id = -1):
         return {'id': id}
     else:
         print("Failed to delete")
+
 
 def list_enrolled():
     # lists fingerprints enrolled

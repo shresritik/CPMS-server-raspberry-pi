@@ -58,16 +58,20 @@ def get_db():
 
 @app.get("/api/v1/upload/")
 async def root():
-
-    value = detect_video(weights=BASE_PATH+"/models/custom_plate.tflite", labels=BASE_PATH+"/labels/plate.txt", conf_thres=0.25, iou_thres=0.45,
+    try:
+        value = detect_video(weights=BASE_PATH+"/models/custom_plate.tflite", labels=BASE_PATH+"/labels/plate.txt", conf_thres=0.25, iou_thres=0.45,
                          img_size=640, webcam=1)
-
-    print("inside main", value)
-    # file_path = listDir + '\output\cropped\cropped1.jpg'
-    with open(BASE_PATH+"/output/cropped/cropped1.jpg", "rb") as image2string:
-        converted_string = base64.b64encode(image2string.read())
-    # file = FileResponse(file_path, media_type='image/jpeg')
-    return {"message": value, "file": converted_string}
+    except:
+        print("error")
+    if (value):
+        print("inside main", value)
+        # file_path = listDir + '\output\cropped\cropped1.jpg'
+        with open(BASE_PATH+"/output/cropped/cropped1.jpg", "rb") as image2string:
+            converted_string = base64.b64encode(image2string.read())
+        # file = FileResponse(file_path, media_type='image/jpeg')
+        return {"message": value, "file": converted_string}
+    else:
+        return {"message": "error"}
 
 
 @app.post("/api/v1/upload/")
@@ -115,15 +119,17 @@ async def new_driver(username: str = Form(), expiry_date: str = Form(), license_
         content = await license_img.read()  # Read the contents of the file
         await out_file.write(content)  # Write the contents to the new file
 
-    fingerprint_id = -1
-    while fingerprint_id == -1:
+   
         try:
             # enroll a new user with fingerprint sensor
             finger_id = finger.enroll()['id']
-        except Exception as ex:
-            finger_id = -1
-            print(f'\n\n Error Importing Fingeprint : {ex} ')
+            print("server in",finger_id)
 
+            if (finger_id==False or finger_id["status"]=="already exist"):
+                finger_id=-1
+        except Exception as ex:
+            print(f'\n\n Error Importing Fingeprint : {ex} ')
+        print("In server",finger_id)
     new_driver = model.Driver(username=username,
                               license_img=file_name, expiry_date=expiry_date, finger_id=finger_id)
     db.add(new_driver)
@@ -143,18 +149,16 @@ async def getDriver(db: Session = Depends(get_db)):
     # driver = db.query(model.Driver).filter_by(finger_id=id).first()
 
     # find fingerprint
-    finger_id = -1
-    while finger_id == -1:
-        try:
-            # enroll a new user with fingerprint sensor
-            finger_id = finger.find()['id']
-            if (finger_id == False or finger_id.status == 'already exit'):
-                finger_id = -1
-            print("In server", finger_id)
-        except Exception as ex:
+   
+    try:
+        # enroll a new user with fingerprint sensor
+        finger_id = finger.find()['id']
+        if (finger_id == False):
             finger_id = -1
-            print(f'\n\n Error Importing Fingeprint : {ex} ')
-            return {'driver': None, 'message': 'Error Importing Fingeprint : {}'.format(ex)}
+        print("In server", finger_id)
+    except Exception as ex:
+        print(f'\n\n Error Importing Fingeprint : {ex} ')
+        return {'driver': None, 'message': 'Error Importing Fingeprint : {}'.format(ex)}
 
     # search by fingerprint id
     try:

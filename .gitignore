@@ -1,2 +1,4 @@
 __pycache__/*
 webcam_yolov5_output.avi
+output/*
+uploads/*
